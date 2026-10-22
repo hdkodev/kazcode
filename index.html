@@ -248,7 +248,7 @@
     <div class="actions">
       <button class="btn primary" id="play-run">▶ Run</button>
       <button class="btn" id="play-clear">Clear output</button>
-      <label class="checkbox"><input type="checkbox" id="play-strict" checked> strict mode</label>
+      <label class="checkbox"><input type="checkbox" id="play-lenient"> lenient mode</label>
       <label class="checkbox"><input type="checkbox" id="play-hex"> show bytes</label>
     </div>
   </section>
@@ -404,13 +404,13 @@ const playMeta    = $("#play-meta");
 function runPlayground() {
   playOutput.classList.remove("err");
   const source = playProgram.value;
-  const strict = $("#play-strict").checked;
+  const lenient = $("#play-lenient").checked;
   const showHex = $("#play-hex").checked;
-
+  
   try {
     const bytes = runKazCode(source, {
       input: playInput.value,
-      strict,
+      lenient,
       returnBytes: true,
     });
     const text = decodeUtf8(bytes);
@@ -482,7 +482,7 @@ function doDecode() {
   try {
     const bytes = runKazCode(decProgram.value, {
       input: decInput.value,
-      strict: true,
+      lenient: false,
       returnBytes: true,
     });
     const text = decodeUtf8(bytes);
