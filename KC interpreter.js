@@ -72,7 +72,7 @@ function decodeUtf8(bytes) {
 function runKazCode(source, options = {}) {
   const {
     input = "",
-    strict = true,
+    lenient = false,
     maxSteps = 1e7,
     returnBytes = false,
   } = options;
@@ -83,7 +83,7 @@ function runKazCode(source, options = {}) {
   for (let i = 0; i < rawTokens.length; i++) {
     const tok = rawTokens[i];
     if (!VALID_TOKENS.has(tok)) {
-      if (strict) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
+      if (!lenient) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
       continue;
     }
     program.push(tok);
@@ -98,18 +98,22 @@ function runKazCode(source, options = {}) {
       bracketStack.push(i);
     } else if (op === "zK") {
       if (bracketStack.length === 0) {
-        throw new SyntaxError(`Unmatched zK at ${i}`);
+        if (!lenient) throw new SyntaxError(`Unmatched zK at ${i}`);
+      } else {
+        const open = bracketStack.pop();
+        match[open] = i;
+        match[i] = open;
       }
-      const open = bracketStack.pop();
-      match[open] = i;
-      match[i] = open;
     }
   }
 
   if (bracketStack.length > 0) {
-    throw new SyntaxError(
-      `Unmatched az at ${bracketStack[bracketStack.length - 1]}`
-    );
+    if (!lenient) {
+      throw new SyntaxError(
+        `Unmatched az at ${bracketStack[bracketStack.length - 1]}`
+      );
+    }
+    for (const open of bracketStack) match[open] = program.length - 1;
   }
 
   const tape = new Map();
@@ -146,7 +150,7 @@ function runKazCode(source, options = {}) {
         if (getCell() === 0) pc = match[pc - 1] + 1;
         break;
       case "zK":
-        if (getCell() !== 0) pc = match[pc - 1];
+        if (match[pc - 1] !== -1 && getCell() !== 0) pc = match[pc - 1];
         break;
 
       case "za":
@@ -155,7 +159,7 @@ function runKazCode(source, options = {}) {
 
       case "Kaz":
         if (dataStack.length === 0) {
-          if (strict) throw new Error("Data stack underflow");
+          if (!lenient) throw new Error("Data stack underflow");
           setCell(0);
         } else {
           setCell(dataStack.pop());
@@ -164,7 +168,7 @@ function runKazCode(source, options = {}) {
 
       case "Kza":
         if (dataStack.length === 0) {
-          if (strict) throw new Error("Data stack underflow");
+          if (!lenient) throw new Error("Data stack underflow");
           dataStack.push(0);
         } else {
           dataStack.push(dataStack[dataStack.length - 1]);
@@ -173,7 +177,7 @@ function runKazCode(source, options = {}) {
 
       case "aKz": {
         if (dataStack.length < 2) {
-          if (strict) throw new Error("Data stack underflow");
+          if (!lenient) throw new Error("Data stack underflow");
           while (dataStack.length < 2) dataStack.unshift(0);
         }
         const i = dataStack.length - 1;
@@ -185,7 +189,7 @@ function runKazCode(source, options = {}) {
 
       case "azK":
         if (dataStack.length === 0) {
-          if (strict) throw new Error("Data stack underflow");
+          if (!lenient) throw new Error("Data stack underflow");
         } else {
           dataStack.pop();
         }
