@@ -39,18 +39,34 @@ function decodeUtf8(bytes) {
   for (let i = 0; i < bytes.length; ) {
     const b0 = bytes[i];
     let cp, len;
-    if (b0 < 0x80) { cp = b0; len = 1; }
-    else if ((b0 & 0xe0) === 0xc0) { cp = b0 & 0x1f; len = 2; }
-    else if ((b0 & 0xf0) === 0xe0) { cp = b0 & 0x0f; len = 3; }
-    else if ((b0 & 0xf8) === 0xf0) { cp = b0 & 0x07; len = 4; }
-    else { out += "\uFFFD"; i++; continue; }
+    if (b0 < 0x80) {
+      cp = b0;
+      len = 1;
+    } else if ((b0 & 0xe0) === 0xc0) {
+      cp = b0 & 0x1f;
+      len = 2;
+    } else if ((b0 & 0xf0) === 0xe0) {
+      cp = b0 & 0x0f;
+      len = 3;
+    } else if ((b0 & 0xf8) === 0xf0) {
+      cp = b0 & 0x07;
+      len = 4;
+    } else {
+      out += "\uFFFD";
+      i++;
+      continue;
+    }
 
     let valid = i + len <= bytes.length;
     for (let k = 1; valid && k < len; k++) {
       const b = bytes[i + k];
-      if ((b & 0xc0) !== 0x80) { valid = false; break; }
+      if ((b & 0xc0) !== 0x80) {
+        valid = false;
+        break;
+      }
       cp = (cp << 6) | (b & 0x3f);
     }
+
     if (valid) {
       if (
         (len === 2 && cp < 0x80) ||
@@ -62,7 +78,13 @@ function decodeUtf8(bytes) {
         valid = false;
       }
     }
-    if (!valid) { out += "\uFFFD"; i++; continue; }
+
+    if (!valid) {
+      out += "\uFFFD";
+      i++;
+      continue;
+    }
+
     out += String.fromCodePoint(cp);
     i += len;
   }
@@ -77,60 +99,33 @@ function runKazCode(source, options = {}) {
     returnBytes = false,
   } = options;
 
+  const warnings = [];
+  const warn = (type, message) => {
+    warnings.push({ type, message });
+    if (typeof options.onWarning === "function") {
+      options.onWarning(type, message);
+    } else if (
+      typeof console !== "undefined" &&
+      typeof console.warn === "function"
+    ) {
+      console.warn(`[Kaz ${type}] ${message}`);
+    }
+  };
+
   const program = [];
-  const rawTokens = String(source).split(/\s+/).filter((t) => t.length > 0);
+  const rawTokens = String(source)
+    .split(/\s+/)
+    .filter((t) => t.length > 0);
 
   for (let i = 0; i < rawTokens.length; i++) {
     const tok = rawTokens[i];
-if (!VALID_TOKENS.has(tok)) {
-  if (!lenient) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
-  warn("token", `Skipped invalid token "${tok}" (token #${i})`);
-  continue;
-}
 
-// unmatched zK
-if (bracketStack.length === 0) {
-  if (!lenient) throw new SyntaxError(`Unmatched zK at ${i}`);
-  warn("bracket", `Ignored unmatched zK at #${i}`);
-}
-
-// unmatched az
-for (const open of bracketStack) {
-  match[open] = program.length - 1;
-  warn("bracket", `Unmatched az at #${open} treated as jump-to-end`);
-}
-
-// POP underflow
-if (dataStack.length === 0) {
-  if (!lenient) throw new Error("Data stack underflow");
-  warn("stack", `POP on empty data stack at #${pc - 1} — cell set to 0`);
-  setCell(0);
-}
-
-// DUP underflow
-if (dataStack.length === 0) {
-  if (!lenient) throw new Error("Data stack underflow");
-  warn("stack", `DUP on empty data stack at #${pc - 1} — pushed 0`);
-}
-
-// SWAP underflow
-if (dataStack.length < 2) {
-  if (!lenient) throw new Error("Data stack underflow");
-  warn("stack", `SWAP underflow at #${pc - 1} — missing value read as 0`);
-}
-
-// DROP underflow
-if (dataStack.length === 0) {
-  if (!lenient) throw new Error("Data stack underflow");
-  warn("stack", `DROP on empty data stack at #${pc - 1} — ignored`);
-}
-
-// RET on empty call stack
-if (callStack.length === 0) {
-  if (lenient) warn("control", `RET on empty call stack at #${pc - 1} — halting`);
-  pc = program.length;
-}
+    if (!VALID_TOKENS.has(tok)) {
+      if (!lenient) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
+      warn("token", `Skipped invalid token "${tok}" (token #${i})`);
+      continue;
     }
+
     program.push(tok);
   }
 
@@ -139,11 +134,13 @@ if (callStack.length === 0) {
 
   for (let i = 0; i < program.length; i++) {
     const op = program[i];
+
     if (op === "az") {
       bracketStack.push(i);
     } else if (op === "zK") {
       if (bracketStack.length === 0) {
         if (!lenient) throw new SyntaxError(`Unmatched zK at ${i}`);
+        warn("bracket", `Ignored unmatched zK at #${i}`);
       } else {
         const open = bracketStack.pop();
         match[open] = i;
@@ -158,7 +155,11 @@ if (callStack.length === 0) {
         `Unmatched az at ${bracketStack[bracketStack.length - 1]}`
       );
     }
-    for (const open of bracketStack) match[open] = program.length - 1;
+
+    for (const open of bracketStack) {
+      match[open] = program.length - 1;
+      warn("bracket", `Unmatched az at #${open} treated as jump-to-end`);
+    }
   }
 
   const tape = new Map();
@@ -183,17 +184,34 @@ if (callStack.length === 0) {
     const op = program[pc++];
 
     switch (op) {
-      case "K": ptr++; break;
-      case "a": ptr--; break;
-      case "z": setCell(getCell() + 1); break;
-      case "Ka": setCell(getCell() - 1); break;
-      case "Kz": output.push(getCell()); break;
+      case "K":
+        ptr++;
+        break;
+
+      case "a":
+        ptr--;
+        break;
+
+      case "z":
+        setCell(getCell() + 1);
+        break;
+
+      case "Ka":
+        setCell(getCell() - 1);
+        break;
+
+      case "Kz":
+        output.push(getCell());
+        break;
+
       case "aK":
         setCell(inputPos < inputBytes.length ? inputBytes[inputPos++] : 0);
         break;
+
       case "az":
         if (getCell() === 0) pc = match[pc - 1] + 1;
         break;
+
       case "zK":
         if (match[pc - 1] !== -1 && getCell() !== 0) pc = match[pc - 1];
         break;
@@ -205,6 +223,7 @@ if (callStack.length === 0) {
       case "Kaz":
         if (dataStack.length === 0) {
           if (!lenient) throw new Error("Data stack underflow");
+          warn("stack", `POP on empty data stack at #${pc - 1} — cell set to 0`);
           setCell(0);
         } else {
           setCell(dataStack.pop());
@@ -214,6 +233,7 @@ if (callStack.length === 0) {
       case "Kza":
         if (dataStack.length === 0) {
           if (!lenient) throw new Error("Data stack underflow");
+          warn("stack", `DUP on empty data stack at #${pc - 1} — pushed 0`);
           dataStack.push(0);
         } else {
           dataStack.push(dataStack[dataStack.length - 1]);
@@ -223,8 +243,10 @@ if (callStack.length === 0) {
       case "aKz": {
         if (dataStack.length < 2) {
           if (!lenient) throw new Error("Data stack underflow");
+          warn("stack", `SWAP underflow at #${pc - 1} — missing value read as 0`);
           while (dataStack.length < 2) dataStack.unshift(0);
         }
+
         const i = dataStack.length - 1;
         const tmp = dataStack[i];
         dataStack[i] = dataStack[i - 1];
@@ -235,6 +257,7 @@ if (callStack.length === 0) {
       case "azK":
         if (dataStack.length === 0) {
           if (!lenient) throw new Error("Data stack underflow");
+          warn("stack", `DROP on empty data stack at #${pc - 1} — ignored`);
         } else {
           dataStack.pop();
         }
@@ -246,8 +269,14 @@ if (callStack.length === 0) {
         break;
 
       case "zaK":
-        if (callStack.length === 0) pc = program.length;
-        else pc = callStack.pop();
+        if (callStack.length === 0) {
+          if (lenient) {
+            warn("control", `RET on empty call stack at #${pc - 1} — halting`);
+          }
+          pc = program.length;
+        } else {
+          pc = callStack.pop();
+        }
         break;
 
       default:
@@ -257,4 +286,4 @@ if (callStack.length === 0) {
 
   if (returnBytes) return output;
   return decodeUtf8(output);
-  }
+}
