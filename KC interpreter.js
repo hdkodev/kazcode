@@ -1,5 +1,3 @@
-// Copyright © 2026 Nakano
-
 const VALID_TOKENS = new Set([
   "K", "a", "z",
   "Ka", "Kz", "aK", "az", "zK", "za",
