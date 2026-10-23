@@ -82,9 +82,54 @@ function runKazCode(source, options = {}) {
 
   for (let i = 0; i < rawTokens.length; i++) {
     const tok = rawTokens[i];
-    if (!VALID_TOKENS.has(tok)) {
-      if (!lenient) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
-      continue;
+if (!VALID_TOKENS.has(tok)) {
+  if (!lenient) throw new SyntaxError(`Invalid Kaz token "${tok}" at ${i}`);
+  warn("token", `Skipped invalid token "${tok}" (token #${i})`);
+  continue;
+}
+
+// unmatched zK
+if (bracketStack.length === 0) {
+  if (!lenient) throw new SyntaxError(`Unmatched zK at ${i}`);
+  warn("bracket", `Ignored unmatched zK at #${i}`);
+}
+
+// unmatched az
+for (const open of bracketStack) {
+  match[open] = program.length - 1;
+  warn("bracket", `Unmatched az at #${open} treated as jump-to-end`);
+}
+
+// POP underflow
+if (dataStack.length === 0) {
+  if (!lenient) throw new Error("Data stack underflow");
+  warn("stack", `POP on empty data stack at #${pc - 1} — cell set to 0`);
+  setCell(0);
+}
+
+// DUP underflow
+if (dataStack.length === 0) {
+  if (!lenient) throw new Error("Data stack underflow");
+  warn("stack", `DUP on empty data stack at #${pc - 1} — pushed 0`);
+}
+
+// SWAP underflow
+if (dataStack.length < 2) {
+  if (!lenient) throw new Error("Data stack underflow");
+  warn("stack", `SWAP underflow at #${pc - 1} — missing value read as 0`);
+}
+
+// DROP underflow
+if (dataStack.length === 0) {
+  if (!lenient) throw new Error("Data stack underflow");
+  warn("stack", `DROP on empty data stack at #${pc - 1} — ignored`);
+}
+
+// RET on empty call stack
+if (callStack.length === 0) {
+  if (lenient) warn("control", `RET on empty call stack at #${pc - 1} — halting`);
+  pc = program.length;
+}
     }
     program.push(tok);
   }
@@ -212,4 +257,4 @@ function runKazCode(source, options = {}) {
 
   if (returnBytes) return output;
   return decodeUtf8(output);
-}
+  }
