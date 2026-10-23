@@ -181,6 +181,29 @@
     font-family: var(--mono);
   }
 
+  details.diag {
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    padding: 8px 12px;
+  }
+  details.diag > summary {
+    cursor: pointer;
+    color: #d29922;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  details.diag > ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  details.diag > ul li { margin: 3px 0; }
+  details.diag > ul li b { color: #d29922; font-weight: 600; }
+
   table.ref {
     width: 100%;
     border-collapse: collapse;
@@ -242,6 +265,10 @@
         <label class="field">Output</label>
         <pre class="out" id="play-output">&nbsp;</pre>
         <div class="meta" id="play-meta"></div>
+        <details class="diag" id="play-diag" hidden>
+          <summary id="play-diag-summary"></summary>
+          <ul id="play-diag-list"></ul>
+        </details>
       </div>
     </div>
 
@@ -318,7 +345,7 @@
   <li><code>zaK</code> RET on an empty call stack halts.</li>
 </ul>
 <p class="hint" style="margin:8px 0 0">
-  The step limit still applies.
+  The step limit still applies, and every recovery is listed under the Playground output as a warning.
 </p>
 
   </section>
@@ -415,18 +442,42 @@ const playProgram = $("#play-program");
 const playInput   = $("#play-input");
 const playOutput  = $("#play-output");
 const playMeta    = $("#play-meta");
+const playDiag        = $("#play-diag");
+const playDiagSummary = $("#play-diag-summary");
+const playDiagList    = $("#play-diag-list");
+
+function renderDiags(diags) {
+  playDiagList.replaceChildren();
+  if (!diags || diags.length === 0) {
+    playDiag.hidden = true;
+    playDiag.open = false;
+    return;
+  }
+  playDiag.hidden = false;
+  playDiag.open = true;
+  playDiagSummary.textContent = `${diags.length} lenient warning(s)`;
+  for (const d of diags) {
+    const li = document.createElement("li");
+    const tag = document.createElement("b");
+    tag.textContent = `[${d.kind}] `;
+    li.append(tag, document.createTextNode(d.message));
+    playDiagList.appendChild(li);
+  }
+}
 
 function runPlayground() {
   playOutput.classList.remove("err");
   const source = playProgram.value;
   const lenient = $("#play-lenient").checked;
   const showHex = $("#play-hex").checked;
-  
+  const diagnostics = [];
+
   try {
     const bytes = runKazCode(source, {
       input: playInput.value,
       lenient,
       returnBytes: true,
+      diagnostics,
     });
     const text = decodeUtf8(bytes);
 
@@ -442,6 +493,8 @@ function runPlayground() {
     playOutput.textContent = String(err && err.message ? err.message : err);
     playMeta.textContent = "";
   }
+
+  renderDiags(diagnostics);
 }
 
 $("#play-run").addEventListener("click", runPlayground);
@@ -449,6 +502,7 @@ $("#play-clear").addEventListener("click", () => {
   playOutput.textContent = "\u00a0";
   playOutput.classList.remove("err");
   playMeta.textContent = "";
+  renderDiags([]);
 });
 
 playProgram.addEventListener("keydown", (e) => {
@@ -532,6 +586,7 @@ $("#dec-copy").addEventListener("click", (e) => {
 
   runPlayground();
   doDecode();
+  renderDiags([]);
 })();
 </script>
 </body>
