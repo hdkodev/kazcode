@@ -306,6 +306,21 @@
         <tr><td>15</td><td class="tok">zaK</td><td class="bf">—</td><td>RET: pop call stack into PC, or halt if empty</td></tr>
       </tbody>
     </table>
+
+<h3 style="font-size:15px;margin:24px 0 8px">Lenient mode</h3>
+<p class="hint" style="margin:0">
+  Strict mode throws on any malformed program. Lenient mode recovers silently instead:
+</p>
+<ul class="diag-list" style="margin-top:8px">
+  <li>Invalid tokens are <b>skipped</b>.</li>
+  <li>Unmatched <code>az</code> jumps past the end (runs once); unmatched <code>zK</code> is ignored.</li>
+  <li>Data-stack underflow reads as <b>0</b> — POP sets the cell to 0, DUP pushes 0, SWAP fills the gap with 0, DROP does nothing.</li>
+  <li><code>zaK</code> RET on an empty call stack halts.</li>
+</ul>
+<p class="hint" style="margin:8px 0 0">
+  The step limit still applies, and every recovery is listed under the Playground output as a warning.
+</p>
+
   </section>
 
 </main>
