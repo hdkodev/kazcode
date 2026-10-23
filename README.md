@@ -39,7 +39,7 @@ Every token is a short group of the letters K, a and z. Tokens are separated by 
 | Kaz | Pop a value from the data stack into the current cell |
 | Kza | Copy the top value of the data stack and push the copy |
 | azK | Swap the top two values of the data stack |
-| aZk | Pop a value from the data stack and throw it away |
+| azK | Pop a value from the data stack and throw it away |
 
 ## Calls
 
